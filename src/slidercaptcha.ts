@@ -90,7 +90,7 @@ class SliderCaptcha {
             if (inBrowser()) {
                 const img = new Image()
                 img.crossOrigin = 'Anonymous'
-                img.src = '/Pic' + Math.round(Math.random() * 4) + '.jpg'
+                img.src = '/Pic' + Math.round(Math.random() * 50) + '.jpg'
                 img.onload = () => {
                     this.drawAll(img)
                     resolve(this)

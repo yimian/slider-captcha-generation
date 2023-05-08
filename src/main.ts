@@ -9,11 +9,11 @@ import _ from 'lodash'
 window.captcha = new PddCaptcha({
     width: 640,
     height: 320,
-    sliderL: Math.floor(_.random(100 * 0.8, 100 * 1.2)), // 滑块边长
-    littleTriangle: Math.floor(15, 20),
-    bigTriangle: Math.floor(_.random(16, 25)),
-    littleRectangle: Math.floor(15, 20),
-    bigRectangle: Math.floor(_.random(16, 25)),
+    sliderL: Math.floor(_.random(80 * 0.8, 80 * 1.2)), // 滑块边长
+    littleTriangle: Math.floor(10, 15),
+    bigTriangle: Math.floor(_.random(11, 20)),
+    littleRectangle: Math.floor(10, 15),
+    bigRectangle: Math.floor(_.random(11, 20)),
     littleArc: Math.floor(15, 20),
     bigArc: Math.floor(16, 25),
     lineWidth: Math.floor(_.random(2, 5)),
