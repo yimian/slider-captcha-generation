@@ -37,7 +37,6 @@ class PddCaptcha extends SliderCaptcha {
             bigRectangle: 20,
             littleArc: 10,
             bigArc: 20,
-            offsets: [40, 70, 100],
             lineWidth: 5,
             initialOffset: 25,
             contrast: 0.8, // 对比度, 0.5,1
@@ -464,7 +463,7 @@ class PddCaptcha extends SliderCaptcha {
     }
 
     randomOffset() {
-        return this.options.offsets[_.random(0, this.options.offsets.length - 1)]
+        return _.random(this.maxD + 10, this.options.sliderL - this.maxD - 10)
     }
 }
 

@@ -1,6 +1,11 @@
 // @ts-nocheck
-import _, {max} from 'lodash'
-import { createCanvas } from "canvas";
+import _ from 'lodash'
+import {createCanvas, loadImage} from "canvas";
+import 'canvas-5-polyfill'
+
+function inBrowser(): boolean {
+    return typeof window !== 'undefined';
+}
 
 type Point = {
     x: number
@@ -15,23 +20,33 @@ type BoundingRect = {
 }
 
 class SliderCaptcha {
-    private readonly $element: HTMLElement;
-    private options: object;
-    public initialSlider: object;
-    public targetSlider: object;
-    public fakeSlider: object;
-    public boundingRect: BoundingRect = {}
-    public fakeBoundingRect: BoundingRect = {}
-    private fakeSame: boolean = false
+    public $element: HTMLElement;
+    public options: object;
+    public gtBndBox: BoundingRect = {}
+    public targetBndBox: BoundingRect = {}
+    public fakeBndBox: BoundingRect = {}
+    public fakeSame: boolean = false
+    public readonly debug: boolean
+    public readonly resolver: Promise
 
-    constructor(id: string, options: object) {
-        this.$element = document.getElementById(id)!;
+    constructor(options: object, debug: boolean = false) {
         this.options = Object.assign({}, this.DEFAULTS, options);
+        this.debug = debug
+        this.initDOM()
+        this.resolver = this.initImg()
+    }
+
+    show(id: string) {
+        this.$element = document.getElementById(id)!;
         this.$element.style.position = "relative";
-        // @ts-ignore
         this.$element.style.width = this.options.width + "px";
         this.$element.style.margin = "0 auto";
-        this.init();
+        this.block.style.position = 'absolute'
+        this.block.style.top = '0'
+        this.block.style.left = '0'
+        this.block.style.display = 'none'
+        this.$element.appendChild(this.canvas)
+        this.$element.appendChild(this.block)
     }
 
     get DEFAULTS() {
@@ -51,14 +66,9 @@ class SliderCaptcha {
         }
     }
 
-    init() {
-        this.initDOM()
-        this.initImg()
-    }
-
     createCanvas(width, height) {
         let canvas
-        if (typeof window !== 'undefined') {
+        if (inBrowser()) {
             canvas = document.createElement('canvas')
             canvas.width = width
             canvas.height = height
@@ -70,117 +80,127 @@ class SliderCaptcha {
 
     initDOM() {
         this.canvas = this.createCanvas(this.options.width - 2, this.options.height)
-        this.block = this.canvas.cloneNode(true)
-        this.block.style.position = 'absolute'
-        this.block.style.top = '0'
-        this.block.style.left = '0'
-        this.block.style.display = 'none'
-        let el = this.$element
-        el.appendChild(this.canvas)
-        el.appendChild(this.block)
+        this.block = this.createCanvas(this.canvas.width, this.canvas.height)
         this.canvasCtx = this.canvas.getContext('2d')
         this.blockCtx = this.block.getContext('2d')
     }
 
     initImg() {
-        const img = new Image()
-        img.crossOrigin = 'Anonymous'
+        return new Promise((resolve) => {
+            if (inBrowser()) {
+                const img = new Image()
+                img.crossOrigin = 'Anonymous'
+                img.src = '/Pic' + Math.round(Math.random() * 4) + '.jpg'
+                img.onload = () => {
+                    this.drawAll(img)
+                    resolve(this)
+                }
+                this.img = img
+            } else {
+                loadImage('public/Pic' + Math.round(Math.random() * 4) + '.jpg').then((img) => {
+                    this.drawAll(img)
+                    resolve(this)
+                })
+            }
+        })
+    }
+
+    log(...args) {
+        if (this.debug && !inBrowser()) {
+            console.log(...args)
+        }
+    }
+
+    drawAll(img) {
         this.x = this.getRandomNumberByRange(this.options.width / 2 + 10, this.options.width - (this.maxL + 10))
         this.y = this.getRandomNumberByRange(this.maxD + 10, this.options.height - (this.maxL + 10))
-        img.onload = () => {
-            console.log(this.x, this.y)
-            const sliderPath = this.drawPath(this.x, this.y, this.boundingRect)
-            this.drawImg(this.canvasCtx, 'fill', sliderPath)
-            if (Math.random() > 0.5) {
-                let point = this.getFakePoint()
-                if (point.x != 0) {
-                    const fakePath = this.drawFakePath(point.x, point.y, this.fakeBoundingRect)
-                    this.drawImg(this.canvasCtx, 'fill', fakePath)
-                    this.fakeSlider = {
-                        'xmin': this.fakeBoundingRect.left,
-                        'ymin': this.fakeBoundingRect.top,
-                        'xmax': this.fakeBoundingRect.right,
-                        'ymax': this.fakeBoundingRect.bottom
-                    }
-                }
+        this.log(this.x, this.y)
+        const sliderPath = this.drawPath(this.x, this.y, this.targetBndBox)
+        this.drawImg(this.canvasCtx, 'fill', sliderPath)
+        if (Math.random() > 0.3) {
+            let point = this.getFakePoint()
+            if (point.x != 0) {
+                const fakePath = this.drawFakePath(point.x, point.y, this.fakeBndBox)
+                this.drawImg(this.canvasCtx, 'fill', fakePath)
             }
-            this.drawImg(this.blockCtx, 'clip', sliderPath)
-            this.canvasCtx.drawImage(img, 0, 0, this.options.width, this.options.height)
-            this.blockCtx.drawImage(img, 0, 0, this.options.width, this.options.height)
-            this.applyEffect(sliderPath)
+        }
+        this.drawImg(this.blockCtx, 'clip', sliderPath)
+        this.canvasCtx.drawImage(img, 0, 0, this.options.width, this.options.height)
+        this.blockCtx.drawImage(img, 0, 0, this.options.width, this.options.height)
+        this.applyEffect(sliderPath)
 
-            let imageData = this.blockCtx.getImageData(this.boundingRect.left, this.boundingRect.top,
-                this.boundingRect.right - this.boundingRect.left,
-                this.boundingRect.bottom - this.boundingRect.top)
-            this.block.width = this.boundingRect.right - this.boundingRect.left + this.options.initialOffset
-            this.blockCtx.putImageData(imageData, this.options.initialOffset, this.boundingRect.top)
-            this.canvasCtx.globalCompositeOperation = 'source-over'
-            this.canvasCtx.drawImage(this.block, 0, 0)
-            this.initialSlider = {
-                'xmin': this.options.initialOffset + Math.floor(this.options.lineWidth / 2),
-                'ymin': this.boundingRect.top + Math.floor(this.options.lineWidth / 2),
-                'xmax': this.options.initialOffset + this.boundingRect.right - this.boundingRect.left - Math.floor(this.options.lineWidth / 2),
-                'ymax': this.boundingRect.bottom + Math.floor(this.options.lineWidth / 2),
-            }
-            this.targetSlider = {
-                'xmin': this.boundingRect.left,
-                'ymin': this.boundingRect.top,
-                'xmax': this.boundingRect.right,
-                'ymax': this.boundingRect.bottom,
-            }
+        let imageData = this.blockCtx.getImageData(this.targetBndBox.left, this.targetBndBox.top,
+            this.targetBndBox.right - this.targetBndBox.left,
+            this.targetBndBox.bottom - this.targetBndBox.top)
+        this.block.width = this.targetBndBox.right - this.targetBndBox.left + this.options.initialOffset
+        this.blockCtx.putImageData(imageData, this.options.initialOffset, this.targetBndBox.top)
+        this.canvasCtx.globalCompositeOperation = 'source-over'
+        this.canvasCtx.drawImage(this.block, 0, 0)
+        this.gtBndBox = {
+            left: this.options.initialOffset + Math.floor(this.options.lineWidth / 2),
+            top: this.targetBndBox.top + Math.floor(this.options.lineWidth / 2),
+            right: this.options.initialOffset + this.targetBndBox.right - this.targetBndBox.left - Math.floor(this.options.lineWidth / 2),
+            bottom: this.targetBndBox.bottom - Math.floor(this.options.lineWidth / 2),
+        }
+        if (this.debug) {
             this.drawBoundingRect()
         }
-        img.src = '/Pic' + Math.round(Math.random() * 4) + '.jpg'
-        this.img = img
     }
 
     getFakePoint(): Point {
         let fx, fy
-        let minX = this.options.initialOffset + this.boundingRect.right - this.boundingRect.left + this.maxD + 10
+        let minX = this.options.initialOffset + this.targetBndBox.right - this.targetBndBox.left + this.maxD + 10
         let minY = this.maxD
         let maxX = this.options.width - this.maxL - 10
         let maxY = this.options.height - this.maxL - 10
+        if (Math.random() > 0.5) {
+            this.fakeSame = true
+        }
         let i
         for (i = 20; i > 0; i--) {
             fx = _.random(minX, maxX)
             fy = _.random(minY, maxY)
-            if (Math.max(fx - this.maxD, this.boundingRect.left) < Math.min(fx + this.maxL,
-                    this.boundingRect.right) &&
-                Math.max(fy - this.maxD, this.boundingRect.top) <
-                Math.min(fy + this.maxL, this.boundingRect.bottom)
+            if (Math.max(fx - this.maxD, this.targetBndBox.left) < Math.min(fx + this.maxL,
+                    this.targetBndBox.right) &&
+                Math.max(fy - this.maxD, this.targetBndBox.top) <
+                Math.min(fy + this.maxL, this.targetBndBox.bottom)
             ) {
-                console.log('overlap, retry')
+                this.log('overlap, retry')
                 continue
             }
-            if (this.fakeSame && Math.abs(fy - this.boundingRect.top) < 10) {
-                console.log('fake same, too near, retry')
+            if (this.fakeSame && Math.abs(fy - this.y) < 20) {
+                this.log('fake same, too near, retry')
                 continue
             }
-            console.log('fx', fx, 'fy', fy)
+            this.log('fx', fx, 'fy', fy)
             break
         }
         if (i == 0) {
             fx = 0
             fy = 0
-            console.log('failed to get fake point')
+            this.log('failed to get fake point')
         }
         this.fx = fx
         this.fy = fy
         return {x: fx, y: fy}
     }
 
+    hasFakeSlider() {
+        return Object.keys(this.fakeBndBox).length > 0
+    }
+
     drawBoundingRect() {
         this.canvasCtx.beginPath()
-        this.canvasCtx.rect(this.initialSlider['xmin'], this.initialSlider['ymin'],
-            this.initialSlider['xmax'] - this.initialSlider['xmin'],
-            this.initialSlider['ymax'] - this.initialSlider['ymin'])
-        this.canvasCtx.rect(this.targetSlider['xmin'], this.targetSlider['ymin'],
-            this.targetSlider['xmax'] - this.targetSlider['xmin'],
-            this.targetSlider['ymax'] - this.targetSlider['ymin'])
-        if (Object.keys(this.fakeBoundingRect).length > 0) {
-            this.canvasCtx.rect(this.fakeSlider['xmin'], this.fakeSlider['ymin'],
-                this.fakeSlider['xmax'] - this.fakeSlider['xmin'],
-                this.fakeSlider['ymax'] - this.fakeSlider['ymin'])
+        this.canvasCtx.rect(this.gtBndBox.left, this.gtBndBox.top,
+            this.gtBndBox.right - this.gtBndBox.left,
+            this.gtBndBox.bottom - this.gtBndBox.top)
+        this.canvasCtx.rect(this.targetBndBox.left, this.targetBndBox.top,
+            this.targetBndBox.right - this.targetBndBox.left,
+            this.targetBndBox.bottom - this.targetBndBox.top)
+        if (this.hasFakeSlider()) {
+            this.canvasCtx.rect(this.fakeBndBox.left, this.fakeBndBox.top,
+                this.fakeBndBox.right - this.fakeBndBox.left,
+                this.fakeBndBox.bottom - this.fakeBndBox.top)
         }
         this.canvasCtx.strokeStyle = 'red'
         this.canvasCtx.lineWidth = 1
@@ -205,7 +225,7 @@ class SliderCaptcha {
         this.blockCtx.globalCompositeOperation = 'source-over'
         this.blockCtx.filter = `contrast(${this.options.contrast}) brightness(${this.options.brightness}) 
             blur(${this.options.lineWidth / 2}px)`
-        this.blockCtx.lineWidth = this.options.lineWidth * 2
+        this.blockCtx.lineWidth = this.options.lineWidth
         let color = Math.round(_.random(0, 255))
         this.blockCtx.strokeStyle = `rgba(${color}, ${color}, ${color})`
         this.blockCtx.stroke(clipPath)
@@ -234,8 +254,7 @@ class SliderCaptcha {
     }
 
     drawFakePath(x, y, boundingRect: BoundingRect): Path2D {
-        if (Math.random() < 0.5) {
-            this.fakeSame = true
+        if (this.fakeSame) {
             return this.drawPath(x, y, boundingRect)
         }
         const l = this.options.sliderL;
@@ -252,7 +271,7 @@ class SliderCaptcha {
         path.lineTo(x, y + l);
         path.arc(x + r - offset, y + l / 2, r, PI - rad, PI + rad, true);
         path.closePath()
-        boundingRect.top = y + Math.floor(this.options.lineWidth / 2)
+        boundingRect.top = y - Math.floor(this.options.lineWidth / 2)
         boundingRect.right = x + l + 2 * r - offset + Math.floor(this.options.lineWidth / 2)
         boundingRect.bottom = y + l + Math.floor(this.options.lineWidth / 2)
         boundingRect.left = x - Math.floor(this.options.lineWidth / 2)
@@ -275,4 +294,4 @@ class SliderCaptcha {
 }
 
 export default SliderCaptcha
-export { BoundingRect, Point }
+export {BoundingRect, Point}
