@@ -79,7 +79,7 @@ class SliderCaptcha {
     }
 
     initDOM() {
-        this.canvas = this.createCanvas(this.options.width - 2, this.options.height)
+        this.canvas = this.createCanvas(this.options.width, this.options.height)
         this.block = this.createCanvas(this.canvas.width, this.canvas.height)
         this.canvasCtx = this.canvas.getContext('2d')
         this.blockCtx = this.block.getContext('2d')
@@ -90,14 +90,14 @@ class SliderCaptcha {
             if (inBrowser()) {
                 const img = new Image()
                 img.crossOrigin = 'Anonymous'
-                img.src = '/Pic' + Math.floor(Math.random() * 50) + '.jpg'
+                img.src = '/Pic' + Math.floor(Math.random() * 100) + '.jpg'
                 img.onload = () => {
                     this.drawAll(img)
                     resolve(this)
                 }
                 this.img = img
             } else {
-                loadImage('public/Pic' + Math.floor(Math.random() * 50) + '.jpg').then((img) => {
+                loadImage('public/Pic' + Math.floor(Math.random() * 100) + '.jpg').then((img) => {
                     this.drawAll(img)
                     resolve(this)
                 })
