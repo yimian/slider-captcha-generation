@@ -11,6 +11,14 @@
 
 项目开发过程中参考了[SliderCaptcha](https://github.com/ArgoZhang/SliderCaptcha)验证码实现方法，并加以改进。
 
+图片样例
+
+![样例1](./sample01.png)
+
+![样例2](./sample02.png)
+
+![样例3](./sample03.png)
+
 ### 使用方法
 
 环境配置：
@@ -25,7 +33,8 @@ pnpm install
 pnpm run dev
 ```
 
-每刷新一次页面，会随机出现一张验证码。
+每刷新一次页面，会随机出现一张验证码。默认显示pdd样式，如果想切换成ks样式，需要
+手动修改`src/main.ts`；
 
 #### 通过命令行生成验证码图片
 
